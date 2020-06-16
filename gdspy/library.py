@@ -7,6 +7,8 @@
 #                                                                    #
 ######################################################################
 
+#Hacked JW 16/6/20 to support   layer:datatype  translation on  read_gds routine to cope with skywater odd stuff
+
 from __future__ import division
 from __future__ import unicode_literals
 from __future__ import print_function
@@ -854,10 +856,10 @@ class Cell(object):
         )
         ldkeys, ltkeys = self.get_svg_classes()
         for k in ldkeys:
-            l, d = k
             if k in style:
                 style_dict = style[k]
             else:
+                l, d = k
                 c = "rgb({}, {}, {})".format(
                     *[
                         int(255 * c + 0.5)
@@ -873,10 +875,10 @@ class Cell(object):
             outfile.write(" ".join("{}: {};".format(*x) for x in style_dict.items()))
             outfile.write("}\n")
         for k in ltkeys:
-            l, t = k
             if k in fontstyle:
                 style_dict = fontstyle[k]
             else:
+                l, t = k
                 c = "rgb({}, {}, {})".format(
                     *[
                         int(255 * c + 0.5)
@@ -982,10 +984,7 @@ class CellReference(object):
             A number that multiplies all dimensions written in the GDSII
             element.
         """
-        if isinstance(self.ref_cell, Cell):
-            name = self.ref_cell.name
-        else:
-            name = self.ref_cell
+        name = self.ref_cell.name
         if len(name) % 2 != 0:
             name = name + "\0"
         outfile.write(struct.pack(">4H", 4, 0x0A00, 4 + len(name), 0x1206))
@@ -1445,10 +1444,7 @@ class CellArray(object):
             A number that multiplies all dimensions written in the GDSII
             element.
         """
-        if isinstance(self.ref_cell, Cell):
-            name = self.ref_cell.name
-        else:
-            name = self.ref_cell
+        name = self.ref_cell.name
         if len(name) % 2 != 0:
             name = name + "\0"
         outfile.write(struct.pack(">4H", 4, 0x0B00, 4 + len(name), 0x1206))
@@ -2210,6 +2206,7 @@ class GdsLibrary(object):
         if close:
             outfile.close()
 
+    #HACKED JW
     def read_gds(
         self,
         infile,
@@ -2219,6 +2216,7 @@ class GdsLibrary(object):
         layers={},
         datatypes={},
         texttypes={},
+        layers_and_datatypes_to_swap_out={},
     ):
         """
         Read a GDSII file into this library.
@@ -2275,12 +2273,16 @@ class GdsLibrary(object):
         create_element = None
         factor = 1
         cell = None
+        layer_record_holder=None #hack
+        datatype_record_holder=None #hack
         for record in _record_reader(infile):
             # LAYER
             if record[0] == 0x0D:
+                layer_record_holder=record[1][0] #-for hack
                 kwargs["layer"] = layers.get(record[1][0], record[1][0])
             # DATATYPE or BOXTYPE
             elif record[0] == 0x0E or record[0] == 0x2E:
+                datatype_record_holder=record[1][0] #-for hack
                 kwargs["datatype"] = datatypes.get(record[1][0], record[1][0])
             # TEXTTYPE
             elif record[0] == 0x16:
@@ -2297,11 +2299,25 @@ class GdsLibrary(object):
                 if record[1][0] < 0:
                     kwargs["width_transform"] = False
             # ENDEL
-            elif record[0] == 0x11:
+            elif record[0] == 0x11:            
+                #hack
+                if layer_record_holder !=None and datatype_record_holder !=None :
+                    #hack jw
+                    print (layer_record_holder,datatype_record_holder)
+                    layer,datatype = layers_and_datatypes_to_swap_out.get( (layer_record_holder,datatype_record_holder), (layer_record_holder,datatype_record_holder) )
+                    kwargs["layer"]=layer
+                    kwargs["datatype"]=datatype
+                    print (layer,datatype)
+                    print ("-----")
+                
+                #as previously before hack... 
                 if create_element is not None:
                     cell.add(create_element(**kwargs))
                     create_element = None
                 kwargs = {}
+                layer_record_holder =None  #hack
+                datatype_record_holder =None  #hack
+
             # BOUNDARY
             elif record[0] == 0x08:
                 create_element = self._create_polygon
