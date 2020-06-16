@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 #
-#requires patched  gdspy in particular,  xemacs /usr/local/lib/python3.8/dist-packages/gdspy/library.py
-#needed changing to allow a hash called 
+#Example of moving masks off a single gds layer (with mulitple datatypes) and putting them on individual gds layer numbers
 
 import gdspy
 
